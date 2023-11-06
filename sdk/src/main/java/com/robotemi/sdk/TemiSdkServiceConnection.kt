@@ -8,6 +8,7 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.os.Process
 import android.util.Log
+import android.content.pm.PackageManager
 
 import androidx.annotation.NonNull
 import androidx.annotation.UiThread
@@ -26,6 +27,9 @@ internal class TemiSdkServiceConnection {
             return Intent().apply { component = componentName }
         }
     }
+
+    @Volatile
+    private var isLauncherExist = false
 
     @NonNull
     private val serviceConnection = object : ServiceConnection {
@@ -48,6 +52,10 @@ internal class TemiSdkServiceConnection {
     @UiThread
     internal fun startConnection(context: Context) {
         Log.d(TAG, "startConnection(Context)")
+
+        isLauncherExist = isPackageExist(context, SdkConstants.TEMI_USA) ||
+                isPackageExist(context, SdkConstants.TEMI_CHINA)
+
         when {
             context.bindService(
                 getSdkServiceIntent(SdkConstants.TEMI_USA),
@@ -73,6 +81,19 @@ internal class TemiSdkServiceConnection {
     @SuppressLint("LongLogTag")
     private fun forceStop() {
         Log.d(TAG, "forceStop()")
-        Process.killProcess(Process.myPid())
+        // only restart if temi launcher is detected
+        if (isLauncherExist)
+            Process.killProcess(Process.myPid())
+    }
+
+    private fun isPackageExist(context: Context, targetPackage: String): Boolean {
+        val pm: PackageManager = context.packageManager
+        try {
+            val info = pm.getPackageInfo(targetPackage, PackageManager.GET_META_DATA)
+        } catch (e: PackageManager.NameNotFoundException) {
+            return false
+        }
+        return true
     }
 }
+
